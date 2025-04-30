@@ -23,7 +23,7 @@ def setup_authentication():
             # We don't clear credentials to allow easy re-login
     else:
         # Reddit API credentials
-        st.subheader("Reddit API Credentials")
+
         client_id = st.text_input(
             "Client ID",
             value=st.session_state.credentials["client_id"],
