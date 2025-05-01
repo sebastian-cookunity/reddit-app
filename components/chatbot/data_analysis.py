@@ -48,17 +48,17 @@ def create_schema_info(df):
 
         # Basic descriptions based on column name and content
         if col_lower == "type":
-            schema_info[
-                col
-            ] = f"The type of Reddit content: {', '.join(df[col].unique().tolist())}"
+            schema_info[col] = (
+                f"The type of Reddit content: {', '.join(df[col].unique().tolist())}"
+            )
         elif col_lower == "subreddit":
-            schema_info[
-                col
-            ] = f"The subreddit where the content was posted: {', '.join(df[col].unique().tolist())}"
+            schema_info[col] = (
+                f"The subreddit where the content was posted: {', '.join(df[col].unique().tolist())}"
+            )
         elif col_lower == "thread_name":
-            schema_info[
-                col
-            ] = "The title of the original post that the content belongs to"
+            schema_info[col] = (
+                "The title of the original post that the content belongs to"
+            )
         elif col_lower == "date":
             min_date = (
                 pd.to_datetime(df[col]).min()
@@ -70,9 +70,9 @@ def create_schema_info(df):
                 if not pd.api.types.is_datetime64_any_dtype(df[col])
                 else df[col].max()
             )
-            schema_info[
-                col
-            ] = f"The date when the content was posted (range: {min_date.strftime('%Y-%m-%d')} to {max_date.strftime('%Y-%m-%d')})"
+            schema_info[col] = (
+                f"The date when the content was posted (range: {min_date.strftime('%Y-%m-%d')} to {max_date.strftime('%Y-%m-%d')})"
+            )
         elif "content" in col_lower:
             schema_info[col] = "The actual text content of the post or comment"
         elif "link" in col_lower or "url" in col_lower:
@@ -80,20 +80,20 @@ def create_schema_info(df):
         elif "sentiment" in col_lower:
             min_val = df[col].min()
             max_val = df[col].max()
-            schema_info[
-                col
-            ] = f"A sentiment score from {min_val} to {max_val} (lower = negative, higher = positive)"
+            schema_info[col] = (
+                f"A sentiment score from {min_val} to {max_val} (lower = negative, higher = positive)"
+            )
         elif "matching" in col_lower:
-            schema_info[
-                col
-            ] = "The specific CookUnity-related term that matched in the content"
+            schema_info[col] = (
+                "The specific CookUnity-related term that matched in the content"
+            )
         elif "page" in col_lower:
             schema_info[col] = "Internal pagination marker used during data collection"
         else:
             # Generic fallback for unknown columns
-            schema_info[
-                col
-            ] = f"Column containing {col.replace('_', ' ').lower()} information"
+            schema_info[col] = (
+                f"Column containing {col.replace('_', ' ').lower()} information"
+            )
 
     return schema_info, sample_counts
 

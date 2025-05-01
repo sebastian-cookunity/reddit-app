@@ -140,9 +140,9 @@ def process_comment(
                     "subreddit": submission.subreddit.display_name,
                     "thread_name": submission.title,
                     "date": comment_date,
-                    "original_matching_word": "null"
-                    if scan_all
-                    else matches[0],  # Use first match if filtering
+                    "original_matching_word": (
+                        "null" if scan_all else matches[0]
+                    ),  # Use first match if filtering
                     "content": comment.body,
                     "link": f"https://reddit.com{comment.permalink}",
                     "sentiment_score": get_sentiment(comment.body),
@@ -207,9 +207,9 @@ def process_reddit_data(reddit_client, subreddits_list, start_date, end_date):
                             "subreddit": specific_post.subreddit.display_name,
                             "thread_name": specific_post.title,
                             "date": post_date,
-                            "original_matching_word": "null"
-                            if scan_all
-                            else post_matches[0],
+                            "original_matching_word": (
+                                "null" if scan_all else post_matches[0]
+                            ),
                             "content": post_content,
                             "link": f"https://reddit.com{specific_post.permalink}",
                             "sentiment_score": get_sentiment(post_content),
@@ -292,9 +292,9 @@ def process_reddit_data(reddit_client, subreddits_list, start_date, end_date):
                                     "subreddit": submission.subreddit.display_name,
                                     "thread_name": submission.title,
                                     "date": post_date,
-                                    "original_matching_word": "null"
-                                    if scan_all
-                                    else post_matches[0],
+                                    "original_matching_word": (
+                                        "null" if scan_all else post_matches[0]
+                                    ),
                                     "content": post_content,
                                     "link": f"https://reddit.com{submission.permalink}",
                                     "sentiment_score": get_sentiment(post_content),

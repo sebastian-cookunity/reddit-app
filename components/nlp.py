@@ -63,13 +63,17 @@ def analyze_sentiment_words(df):
             {
                 "type": row["type"],
                 "subreddit": row["subreddit"],
-                "date": row["date"]
-                if isinstance(row["date"], str)
-                else row["date"].strftime("%Y-%m-%d"),
+                "date": (
+                    row["date"]
+                    if isinstance(row["date"], str)
+                    else row["date"].strftime("%Y-%m-%d")
+                ),
                 "sentiment_score": row["sentiment_score"],
-                "content": row["content"][:150] + "..."
-                if len(str(row["content"])) > 150
-                else row["content"],
+                "content": (
+                    row["content"][:150] + "..."
+                    if len(str(row["content"])) > 150
+                    else row["content"]
+                ),
             }
         )
 
