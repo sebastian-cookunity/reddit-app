@@ -3,6 +3,12 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
+import re
+from collections import Counter
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+import nltk
+from nltk.corpus import stopwords
 
 
 def render_analytics(data):
@@ -29,28 +35,65 @@ def render_analytics(data):
     # Create year-week column for sorting that shows week start date
     df["year_week"] = df["week_start_date"].dt.strftime("%Y-%m-%d")
 
-    # Filter selector
+    # Add filter options
+    st.write("Filter Data:")
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        # Filter by subreddit
+        subreddit_options = ["All"] + sorted(df["subreddit"].unique().tolist())
+        selected_subreddit = st.selectbox(
+            "Subreddit", subreddit_options, key="analytics_subreddit"
+        )
+
+    with col2:
+        # Filter by type (Post or Comment)
+        type_options = ["All"] + sorted(df["type"].unique().tolist())
+        selected_type = st.selectbox("Content Type", type_options, key="analytics_type")
+
+    with col3:
+        # Filter by sentiment
+        sentiment_options = ["All"] + sorted(df["sentiment_score"].unique().tolist())
+        selected_sentiment = st.selectbox(
+            "Sentiment Score", sentiment_options, key="analytics_sentiment"
+        )
+
+    # Add content search filter
+    content_search = st.text_input(
+        "Search in content (case-insensitive):", "", key="analytics_content_search"
+    )
+
+    # Apply filters
+    filtered_df = df.copy()
+
+    if selected_subreddit != "All":
+        filtered_df = filtered_df[filtered_df["subreddit"] == selected_subreddit]
+
+    if selected_type != "All":
+        filtered_df = filtered_df[filtered_df["type"] == selected_type]
+
+    if selected_sentiment != "All":
+        filtered_df = filtered_df[filtered_df["sentiment_score"] == selected_sentiment]
+
+    # Apply content search filter (case-insensitive)
+    if content_search:
+        filtered_df = filtered_df[
+            filtered_df["content"].str.contains(content_search, case=False, na=False)
+        ]
+
+    # Filter selector for metrics
     metrics = st.selectbox(
         "Select Metric to Analyze", ["Post/Comment Count", "Average Sentiment"]
     )
-
-    # Filter by subreddit
-    subreddit_options = ["All"] + sorted(df["subreddit"].unique().tolist())
-    selected_subreddit = st.selectbox(
-        "Filter by Subreddit", subreddit_options, key="analytics_subreddit"
-    )
-
-    # Apply subreddit filter if not "All"
-    if selected_subreddit != "All":
-        filtered_df = df[df["subreddit"] == selected_subreddit]
-    else:
-        filtered_df = df
 
     # Group by week for analysis
     if metrics == "Post/Comment Count":
         _render_post_comment_count_analytics(filtered_df)
     else:  # Average Sentiment
         _render_sentiment_analytics(filtered_df)
+
+    # Add word frequency analysis and wordcloud
+    _render_word_analysis(filtered_df)
 
 
 def _render_post_comment_count_analytics(filtered_df):
@@ -298,3 +341,109 @@ def _render_sentiment_analytics(filtered_df):
             st.info("Not enough data for week-over-week analysis")
     else:
         st.info("Not enough weeks of data for week-over-week analysis")
+
+
+def _render_word_analysis(filtered_df):
+    """Render word frequency and word cloud visualizations"""
+    st.subheader("Content Text Analysis")
+
+    # Ensure stopwords are available
+    try:
+        nltk.data.find("corpora/stopwords")
+    except LookupError:
+        nltk.download("stopwords")
+
+    # Get stopwords
+    stop_words = set(stopwords.words("english"))
+
+    # Add common words that may not add value to the analysis
+    additional_stopwords = {
+        "cookunity",
+        "cook",
+        "unity",
+        "food",
+        "meal",
+        "meals",
+        "just",
+        "like",
+        "get",
+        "got",
+        "would",
+        "im",
+        "ive",
+        "one",
+        "also",
+        "really",
+        "much",
+        "even",
+        "though",
+        "still",
+        "back",
+    }
+    stop_words.update(additional_stopwords)
+
+    # Combine all content for processing
+    all_content = " ".join([str(content) for content in filtered_df["content"]]).lower()
+
+    # Tokenize the text (split into words)
+    words = re.findall(r"\b\w+\b", all_content)
+
+    # Filter out stopwords and short words
+    filtered_words = [
+        word for word in words if word not in stop_words and len(word) > 2
+    ]
+
+    # Count word frequencies
+    word_counts = Counter(filtered_words)
+
+    # Display word frequency and wordcloud in side-by-side columns
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("Top 10 Most Frequent Words")
+
+        # Get top 10 words
+        top_words = word_counts.most_common(10)
+
+        if not top_words:
+            st.info("No significant words found in the filtered content.")
+        else:
+            # Create a bar chart using Plotly
+            words, counts = zip(*top_words)
+            fig = px.bar(
+                x=words,
+                y=counts,
+                labels={"x": "Words", "y": "Frequency"},
+                title="Word Frequency Analysis",
+            )
+
+            # Customize the layout
+            fig.update_layout(
+                xaxis_title="Word",
+                yaxis_title="Frequency",
+                xaxis={"categoryorder": "total descending"},
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        st.subheader("Word Cloud")
+
+        if not word_counts:
+            st.info("No significant words found in the filtered content.")
+        else:
+            # Generate the wordcloud
+            wordcloud = WordCloud(
+                width=800,
+                height=400,
+                background_color="white",
+                max_words=100,
+                contour_width=1,
+                contour_color="steelblue",
+            ).generate_from_frequencies(word_counts)
+
+            # Display the wordcloud using matplotlib
+            fig, ax = plt.subplots(figsize=(10, 5))
+            ax.imshow(wordcloud, interpolation="bilinear")
+            ax.axis("off")
+            st.pyplot(fig)
