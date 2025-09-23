@@ -2,24 +2,40 @@ import streamlit as st
 import praw
 from datetime import datetime, timezone
 import re
-import nltk
-from nltk.sentiment.vader import SentimentIntensityAnalyzer
+from transformers import pipeline
+import warnings
+
+warnings.filterwarnings("ignore")
 
 
-# Initialize VADER sentiment analyzer - cached using streamlit
+# Initialize RoBERTa sentiment analyzer - cached using streamlit
 @st.cache_resource
-def initialize_vader():
-    # Vader initialization should be done once
+def initialize_roberta_sentiment():
+    """Initialize RoBERTa sentiment analysis pipeline
+
+    Uses cardiffnlp/twitter-roberta-base-sentiment-latest which is:
+    - Optimized for social media text (like Reddit)
+    - More accurate than VADER
+    - Handles modern slang and expressions
+    """
     try:
-        nltk.data.find("sentiment/vader_lexicon")
-    except LookupError:
-        nltk.download("vader_lexicon", quiet=True)
+        sentiment_pipeline = pipeline(
+            "sentiment-analysis",
+            model="cardiffnlp/twitter-roberta-base-sentiment-latest",
+            return_all_scores=False,
+        )
+        return sentiment_pipeline
+    except Exception as e:
+        st.error(f"Failed to load RoBERTa model: {e}")
+        # Fallback to a simpler model if the main one fails
+        return pipeline(
+            "sentiment-analysis",
+            model="distilbert-base-uncased-finetuned-sst-2-english",
+        )
 
-    return SentimentIntensityAnalyzer()
 
-
-# Get VADER sentiment analyzer instance
-sia = initialize_vader()
+# Get RoBERTa sentiment analyzer instance
+sentiment_analyzer = initialize_roberta_sentiment()
 
 # Search terms (case-insensitive) for CookUnity variations
 search_terms = [
@@ -83,26 +99,77 @@ def subreddit_contains_cookunity(subreddit_name):
 
 
 def get_sentiment(text):
-    """Calculate sentiment score from text using NLTK VADER
+    """Calculate sentiment score from text using RoBERTa
 
-    VADER is specifically designed for social media text and handles things like:
-    - Capitalization and punctuation emphasis
-    - Emoticons and emojis
-    - Negations
-    - Common slang and abbreviations
+    RoBERTa is a state-of-the-art transformer model that provides:
+    - Superior accuracy compared to VADER
+    - Better understanding of context and nuance
+    - Robust handling of social media text
+    - Modern slang and expression recognition
+
+    Returns:
+        int: Sentiment score on 1-5 scale (1=very negative, 5=very positive)
     """
-    # Get sentiment scores
-    sentiment_scores = sia.polarity_scores(text)
+    try:
+        # Clean text for better processing
+        cleaned_text = _preprocess_text(text)
 
-    # The compound score is a normalized score between -1 (most negative) and 1 (most positive)
-    compound_score = sentiment_scores["compound"]
+        # Get sentiment prediction from RoBERTa
+        result = sentiment_analyzer(cleaned_text)[0]
 
-    # Convert compound score (-1 to 1) to 1-5 scale
-    # -1 → 1, -0.5 → 2, 0 → 3, 0.5 → 4, 1 → 5
-    score = round((compound_score + 1) * 2) + 1
+        label = result["label"].upper()
+        confidence = result["score"]
 
-    # Ensure score is within 1-5 range
-    return max(1, min(5, score))
+        # Convert RoBERTa output to 1-5 scale
+        if label == "NEGATIVE":
+            # Map negative confidence to 1-2 range
+            # High confidence negative (0.9) → 1, Low confidence negative (0.5) → 2
+            score = max(1, round(3 - (confidence * 2)))
+        elif label == "POSITIVE":
+            # Map positive confidence to 4-5 range
+            # High confidence positive (0.9) → 5, Low confidence positive (0.5) → 4
+            score = min(5, round(3 + (confidence * 2)))
+        else:  # NEUTRAL (if model supports it)
+            score = 3
+
+        return max(1, min(5, score))
+
+    except Exception as e:
+        # Fallback to neutral if analysis fails
+        st.warning(f"Sentiment analysis failed for text: {text[:50]}... Error: {e}")
+        return 3
+
+
+def _preprocess_text(text):
+    """Preprocess text for better sentiment analysis
+
+    Args:
+        text (str): Raw text from Reddit
+
+    Returns:
+        str: Cleaned text optimized for sentiment analysis
+    """
+    if not text or not isinstance(text, str):
+        return ""
+
+    # Limit text length for model efficiency (RoBERTa has 512 token limit)
+    if len(text) > 500:
+        text = text[:500] + "..."
+
+    # Basic cleaning while preserving sentiment indicators
+    # Remove excessive whitespace
+    text = re.sub(r"\s+", " ", text)
+
+    # Remove URLs but keep the sentiment context
+    text = re.sub(r"http\S+|www\S+", "[URL]", text)
+
+    # Remove Reddit-specific formatting that doesn't affect sentiment
+    text = re.sub(r"/u/\w+", "[USER]", text)  # Replace usernames
+    text = re.sub(r"/r/\w+", "[SUBREDDIT]", text)  # Replace subreddit mentions
+
+    # Keep emojis and punctuation as they're important for sentiment
+
+    return text.strip()
 
 
 def process_comment(
